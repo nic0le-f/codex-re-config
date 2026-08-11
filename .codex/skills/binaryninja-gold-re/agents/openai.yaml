@@ -1,0 +1,4 @@
+interface:
+  display_name: "Binary Ninja Gold RE"
+  short_description: "Validated gold BNDB reversing workflow"
+  default_prompt: "Use $binaryninja-gold-re to analyze this PE or ELF binary and produce a validated gold BNDB."

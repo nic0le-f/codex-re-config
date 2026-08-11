@@ -1,0 +1,12 @@
+.codex/auth.json
+.codex/config.toml
+.codex/installation_id
+.codex/log/
+.codex/logs/
+.codex/memory/
+.codex/sessions/
+.codex/shell_snapshots/
+.codex/state/
+.codex/goals/
+.codex/packages/standalone/releases/
+.codex/packages/standalone/current

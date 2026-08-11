@@ -1,0 +1,7 @@
+model = "gpt-5.5"
+model_reasoning_effort = "medium"
+approvals_reviewer = "auto_review"
+
+# Add target-machine project trust entries and MCP server paths locally.
+# This file intentionally omits machine-specific project paths, auth, history,
+# sessions, and secrets from the source machine.

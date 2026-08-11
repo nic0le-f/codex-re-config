@@ -1,0 +1,4 @@
+# Sanitized portable default rules.
+# Add target-machine approval rules locally as needed.
+prefix_rule(pattern=["mkdir", "-p"], decision="allow")
+prefix_rule(pattern=["chmod", "+x"], decision="allow")

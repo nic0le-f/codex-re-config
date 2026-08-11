@@ -1,0 +1,4 @@
+interface:
+  display_name: "Malcat Triage"
+  short_description: "Initial Malcat triage for PE/ELF samples"
+  default_prompt: "Use $malcat-triage to statically triage this binary with Malcat and list Binary Ninja follow-up targets."
