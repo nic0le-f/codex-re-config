@@ -35,8 +35,21 @@ def symbol_rows(symbols: list[Any], limit: int = 10000) -> list[dict[str, Any]]:
     return rows
 
 
+def analysis_target(case_dir: Path) -> Path:
+    """The file the gold BNDB describes — the unpacked payload once one is registered."""
+    case_path = case_dir / "case.json"
+    rel = "sample/original.bin"
+    if case_path.exists():
+        case = json.loads(case_path.read_text(encoding="utf-8"))
+        rel = case.get("analysis_target") or rel
+    target = case_dir / rel
+    if not target.exists():
+        raise FileNotFoundError(f"analysis target missing: {target}")
+    return target
+
+
 def export_facts(case_dir: Path) -> dict[str, Any]:
-    sample = case_dir / "sample" / "original.bin"
+    sample = analysis_target(case_dir)
     base_bndb = case_dir / "binja" / "base.bndb"
     analyst_bndb = case_dir / "work" / "analyst.bndb"
     validator_bndb = case_dir / "work" / "validator.bndb"
@@ -95,6 +108,7 @@ def export_facts(case_dir: Path) -> dict[str, Any]:
     facts = {
         "sample": {
             "path": str(sample),
+            "relative_path": str(sample.relative_to(case_dir)),
             "sha256": sha256_file(sample),
             "size": sample.stat().st_size,
         },
