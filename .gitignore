@@ -10,3 +10,4 @@
 .codex/goals/
 .codex/packages/standalone/releases/
 .codex/packages/standalone/current
+__pycache__/

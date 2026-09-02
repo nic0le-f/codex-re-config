@@ -52,6 +52,41 @@ def accepted_by_kind(claims: list[dict[str, Any]], verdicts: list[dict[str, Any]
     return grouped
 
 
+def lineage_lines(case: dict[str, Any]) -> list[str]:
+    """State which file the gold BNDB actually describes.
+
+    Without this a report silently attributes every finding to the delivered
+    sample, even when the analysis ran on an unpacked payload.
+    """
+    lines = []
+    parent = case.get("delivered_parent")
+    if parent:
+        lines.append(
+            f"- Handed in as a payload extracted from `{parent.get('sha256') or 'unknown parent'}`"
+            + (f" — {parent['note']}" if parent.get("note") else "")
+        )
+
+    lineage = case.get("lineage") or []
+    if not lineage:
+        lines.append(
+            f"- No unpacking performed in-case. The gold BNDB describes "
+            f"`sample/original.bin` (`{case.get('sha256', '')}`)."
+        )
+        return lines
+
+    lines.append(f"- Delivered sample: `sample/original.bin` (`{case.get('sha256', '')}`)")
+    for step in lineage:
+        lines.append(
+            f"- Step {step.get('step')}: `{step.get('parent_path')}` → `{step.get('path')}` "
+            f"via {step.get('method')} ({step.get('tool')}) — `{step.get('sha256')}`"
+            + (f" — {step['notes']}" if step.get("notes") else "")
+        )
+    lines.append(
+        f"- **The gold BNDB describes `{case.get('analysis_target')}`, not the delivered sample.**"
+    )
+    return lines
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate reports/final.md for a gold RE case")
     parser.add_argument("case_dir")
@@ -82,17 +117,25 @@ def main() -> int:
         f"- Claims: `{case_dir / 'claims' / 'claims.jsonl'}`",
         f"- Verdicts: `{case_dir / 'claims' / 'verdicts.jsonl'}`",
         "",
-        "## Observed Facts",
+        "## Sample Lineage",
         "",
-        f"- Sample: `{sample_name}`",
-        f"- SHA-256: `{case.get('sha256') or sample.get('sha256', '')}`",
-        f"- Size: `{sample.get('size', '')}` bytes",
-        f"- Binary Ninja view: `{bv.get('view_type', '')}` `{bv.get('arch', '')}` `{bv.get('platform', '')}`",
-        f"- Entry point: `{bv.get('entry_point', '')}`",
-        f"- Functions exported: `{len(facts.get('functions', []))}`",
-        f"- Strings exported: `{len(facts.get('strings', []))}`",
-        f"- Sections exported: `{len(facts.get('sections', []))}`",
     ]
+    report_lines.extend(lineage_lines(case))
+    report_lines.extend(
+        [
+            "",
+            "## Observed Facts",
+            "",
+            f"- Sample: `{sample_name}`",
+            f"- SHA-256: `{case.get('sha256') or sample.get('sha256', '')}`",
+            f"- Size: `{sample.get('size', '')}` bytes",
+            f"- Binary Ninja view: `{bv.get('view_type', '')}` `{bv.get('arch', '')}` `{bv.get('platform', '')}`",
+            f"- Entry point: `{bv.get('entry_point', '')}`",
+            f"- Functions exported: `{len(facts.get('functions', []))}`",
+            f"- Strings exported: `{len(facts.get('strings', []))}`",
+            f"- Sections exported: `{len(facts.get('sections', []))}`",
+        ]
+    )
     if go_context:
         report_lines.extend(
             [

@@ -254,13 +254,23 @@ def source_tree_markdown(paths: list[str], module_root: str, app_roots: set[str]
     return "\n".join(lines)
 
 
+def analysis_target(case_dir: Path) -> Path:
+    """The file the gold BNDB describes — the unpacked payload once one is registered."""
+    case_path = case_dir / "case.json"
+    rel = "sample/original.bin"
+    if case_path.exists():
+        case = json.loads(case_path.read_text(encoding="utf-8"))
+        rel = case.get("analysis_target") or rel
+    return case_dir / rel
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Extract ELF/Go evidence for a gold RE case")
     parser.add_argument("case_dir")
     args = parser.parse_args()
 
     case_dir = Path(args.case_dir).expanduser().resolve()
-    sample = case_dir / "sample" / "original.bin"
+    sample = analysis_target(case_dir)
     evidence_dir = case_dir / "evidence"
     if not sample.exists():
         raise FileNotFoundError(sample)
