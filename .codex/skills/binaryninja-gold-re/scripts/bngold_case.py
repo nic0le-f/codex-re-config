@@ -173,6 +173,32 @@ def add_unpacked(args: argparse.Namespace) -> int:
     return 0
 
 
+def naming_errors(claim: dict[str, Any], prefix: str) -> list[str]:
+    """Enforce the mw_ taxonomy on analyst-supplied symbol names.
+
+    Only function_name and data_name propose symbols. type_definition is a C
+    declaration, source_file is a path, and function_comment is prose.
+    """
+    if claim.get("kind") not in {"function_name", "data_name"}:
+        return []
+
+    name = str(claim.get("proposed_value", ""))
+    errors = []
+    if not name.startswith("mw_"):
+        errors.append(
+            f"{prefix}: proposed_value {name!r} must carry the mw_ prefix. "
+            f"If the binary already supplies this name, there is nothing to claim."
+        )
+    if name != name.lower():
+        errors.append(f"{prefix}: proposed_value {name!r} must be snake_case")
+    if name.endswith("_likely") or "_likely_" in name:
+        errors.append(
+            f"{prefix}: drop the _likely suffix from {name!r}. Uncertainty belongs in "
+            f"claim.status and the validator's needs_human verdict, not in the symbol."
+        )
+    return errors
+
+
 def validate_claim(claim: dict[str, Any], index: int) -> list[str]:
     errors = []
     prefix = f"claim[{index}]"
@@ -183,6 +209,7 @@ def validate_claim(claim: dict[str, Any], index: int) -> list[str]:
         errors.append(f"{prefix}: invalid kind {claim.get('kind')!r}")
     if claim.get("status") not in VALID_STATUS:
         errors.append(f"{prefix}: invalid status {claim.get('status')!r}")
+    errors.extend(naming_errors(claim, prefix))
     evidence = claim.get("evidence")
     if not isinstance(evidence, list) or not evidence:
         errors.append(f"{prefix}: evidence must be a non-empty list")
