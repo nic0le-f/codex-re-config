@@ -18,7 +18,8 @@ and `bnpython` to the installed Binary Ninja interpreter.
    references before consolidation. Read [sample lineage](references/sample-lineage.md)
    for payloads or alternate case roots. Read [case handoff](references/case-handoff.md)
    to resume a task, work with hunt records, or record findings.
-2. **Prepare evidence.** Optional Malcat triage goes under `triage/`. Run
+2. **Prepare evidence.** Reuse relevant outputs under `triage/` from
+   `static-malware-triage`. Collect optional Malcat leads when needed. Run
    `"$bnpython" "$scripts/bn_export_facts.py" "$case_dir"` to prepare the base
    and separate analyst and validator databases. Read [binary formats](references/binary-formats.md)
    when selecting PE or ELF evidence or using Go and DWARF tools.

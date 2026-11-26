@@ -17,7 +17,8 @@ which exceeds GitHub's normal per-file limit without Git LFS.
 The reversing-specific skills are:
 
 - `.codex/skills/binaryninja-gold-re`
-- `.codex/skills/malcat-triage`
+- `.codex/skills/static-malware-triage` for a quick static verdict
+- `.codex/skills/malcat-triage` for Malcat evidence and lead collection
 
 Excluded on purpose from the repository:
 
