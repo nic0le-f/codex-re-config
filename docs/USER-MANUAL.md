@@ -21,6 +21,27 @@ expected report and gold paths, tasks, and hunt records. A new case may have
 an index before those outputs exist. A legacy case without an index can use
 the standard paths returned by the handoff command.
 
+## Run quick static triage
+
+Start Codex in the case directory. Ask it to use `$static-malware-triage`
+on the local sample when you need a first-pass verdict and a decision about
+deeper analysis. Use `$malcat-triage` for Malcat-specific evidence. Use
+`$binaryninja-gold-re` when you need a validated BNDB or evidence-backed
+recovery.
+
+To run only the evidence collector from the case root:
+
+```sh
+triage="$HOME/.codex/skills/static-malware-triage/scripts/collect_triage.py"
+python3 "$triage" sample/original.bin
+```
+
+The collector writes an identity summary, local parser results, and
+available Malcat and Binary Ninja evidence beneath `triage/`. Set
+`BNPYTHON` if your Binary Ninja interpreter is in a different location.
+The report's attention score helps prioritize review. Codex applies the
+triage rubric to reach the verdict.
+
 ## Start, checkpoint, or resume a task
 
 Give a task one primary deliverable. Choose a stable ID you can search for

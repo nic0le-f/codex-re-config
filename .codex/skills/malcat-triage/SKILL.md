@@ -1,6 +1,6 @@
 ---
 name: malcat-triage
-description: Use this skill for initial static triage of suspicious binaries, malware samples, PE files, ELF files, packed files, shellcode, archives, embedded files, or reverse-engineering targets with Malcat. It runs Malcat headless reports and optional JSON extraction to surface YARA/capa-style detections, anomalies, packer hints, strings, sections/regions, symbols, carved files, and triage leads before deeper Binary Ninja reversing. Use this as a lead generator only; do not treat Malcat, YARA, capa, or anomaly labels as final proof for gold BNDB names or types.
+description: Collect Malcat-specific static evidence for a local file when requested or when quick triage or gold RE needs Malcat leads. Use static-malware-triage for a first-pass verdict. Treat Malcat findings as leads that require independent evidence.
 metadata:
   short-description: Initial Malcat triage for PE/ELF samples
 ---
