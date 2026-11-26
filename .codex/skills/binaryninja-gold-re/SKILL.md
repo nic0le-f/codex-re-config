@@ -19,6 +19,10 @@ Do not execute the sample. Static Binary Ninja analysis is the source of truth. 
 python3 "$HOME/.codex/skills/binaryninja-gold-re/scripts/bngold_case.py" init /path/to/sample --cases-dir "$HOME/re-cases"
 ```
 
+Intake checks the full SHA-256 against existing case manifests. If it finds
+one match, use the returned path and its existing lineage. If intake reports
+multiple matches, resolve references before consolidating any files.
+
 Override the cases root with `--cases-dir` or the `BNGOLD_CASES_DIR` environment variable.
 
 If the file you hand in is itself a payload rather than the delivered sample, record where it came from — otherwise the report attributes every finding to a file with no provenance:
@@ -68,7 +72,10 @@ This writes `evidence/go_type_layouts.json` and `evidence/go_type_layouts.md`. U
 python3 "$HOME/.codex/skills/binaryninja-gold-re/scripts/bngold_case.py" validate-claims CASE_DIR
 ```
 
-Use a separate validator agent/session when possible. The validator must inspect `work/validator.bndb`, `evidence/bn_facts.json`, and `claims/claims.jsonl`, but not analyst notes or `work/analyst.bndb`.
+Gold promotion requires a current independent review receipt. Use a validator
+subagent, a separate Codex session, or a human reviewer. If no independent
+reviewer is available, keep the work pending. Choose models according to the
+task and record the reviewer's actual model when known. The validator must inspect `work/validator.bndb`, `evidence/bn_facts.json`, and `claims/claims.jsonl`, but not analyst notes or `work/analyst.bndb`.
 
 8. Apply only accepted claims:
 
@@ -96,6 +103,9 @@ Every proposed edit must be a JSONL claim with:
 
 Supported claim kinds:
 - `function_name`: meaningful behavior name for a function address.
+- `function_signature`: C function declaration, keyed by function address.
+- `local_variable_name`: name keyed by a target object with `function` (address string) and `identifier` (numeric Binary Ninja variable ID from the analyzed function’s HLIL variable list).
+- `address_comment`: evidence-backed note keyed by instruction address.
 - `function_comment`: concise evidence-backed behavior note.
 - `data_name`: semantic name for a data address or symbol.
 - `type_definition`: C type/enum/struct declaration.
@@ -184,6 +194,59 @@ When `file` or Binary Ninja indicates a Go binary:
 - Use `evidence/go_type_layouts.json` and `evidence/go_type_layouts.md` for DWARF-backed struct layout evidence.
 - For statically linked Go binaries, expect very large function counts. Focus claims on package clusters, command handlers, protocol handlers, config/build metadata, network/client setup, persistence/service logic, and crypto/compression routines.
 - Do not claim full struct layout recovery just because DWARF type names exist. Field-offset claims need `elf_go_type_layout.py` output or equivalent offset/access evidence plus validator acceptance.
+
+The apply command builds and reopens a candidate before replacing gold.
+It retains the previous database at `gold/previous.bndb` and records the
+base digest, gold digest, applied claim IDs and verification in a manifest
+under `gold/manifests/`.
+
+## Local case handoff
+
+Use `case_handoff.py CASE register-hunt` to archive an exported hunt job
+and link its hits to local candidate records. The command reports existing
+assessments. Keep the rule used and hit list as captured by the service.
+For known benign fixtures, `validate-rule` compiles and checks that frozen
+rule version against local positive and negative controls.
+
+The fact exporters put detailed results on disk. Use
+`case_handoff.py CASE evidence PATH --offset BYTE --limit BYTES` for
+targeted excerpts. Link a verified conclusion to case evidence with
+`record-finding`. Use a new finding ID and `--supersedes` to correct it.
+The final report links to the current findings.
+
+## Independent Review Gate
+
+After the base, claims, and verdicts are ready, run
+`case_handoff.py CASE_DIR request-review gold` as the author. Give the reviewer
+the case path and primary evidence references. The reviewer runs
+`record-review gold` with a distinct reviewer ID, verdict, evidence paths,
+and a summary. A changed input or evidence file requires a fresh review
+before gold can be promoted.
+
+Use `start-task --task-type family-attribution` or
+`--task-type material-report-correction` for those high-impact deliverables.
+Save the outputs in an in-progress checkpoint and request review using its
+task ID. Mark the task completed once the independent approval matches the
+saved outputs. Use `--task-type gold-bndb` to show review readiness on a gold
+task checkpoint. The same gold receipt covers promotion and task completion.
+
+## Resume Existing Case Work
+
+For session context, start with a short summary of the current result,
+evidence IDs or bounded excerpts. Save full decompiler exports and tool
+results to case files and reference their paths when needed.
+
+Start in the case root returned by intake. Use
+`scripts/case_handoff.py CASE_DIR start-task TASK_ID` to read the case map
+and existing checkpoint together. For a new task, supply `--scope`,
+`--deliverable`, and `--done-when`. New cases have an index from intake.
+For legacy cases without one, the command returns the standard paths.
+
+For hunt follow-ups, use `lookup SHA256` to find prior assessments and
+job IDs. Update the checkpoint with `record-task` after meaningful
+progress and at handoff. Include the Codex session ID, scope, output paths,
+evidence references, open questions and next action. See the repository
+README for command examples.
 
 ## Output Standard
 
