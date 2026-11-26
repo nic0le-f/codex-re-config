@@ -72,7 +72,10 @@ This writes `evidence/go_type_layouts.json` and `evidence/go_type_layouts.md`. U
 python3 "$HOME/.codex/skills/binaryninja-gold-re/scripts/bngold_case.py" validate-claims CASE_DIR
 ```
 
-Use a separate validator agent/session when possible. The validator must inspect `work/validator.bndb`, `evidence/bn_facts.json`, and `claims/claims.jsonl`, but not analyst notes or `work/analyst.bndb`.
+Gold promotion requires a current independent review receipt. Use a validator
+subagent, a separate Codex session, or a human reviewer. If no independent
+reviewer is available, keep the work pending. Choose models according to the
+task and record the reviewer's actual model when known. The validator must inspect `work/validator.bndb`, `evidence/bn_facts.json`, and `claims/claims.jsonl`, but not analyst notes or `work/analyst.bndb`.
 
 8. Apply only accepted claims:
 
@@ -210,6 +213,22 @@ The fact exporters put detailed results on disk. Use
 targeted excerpts. Link a verified conclusion to case evidence with
 `record-finding`. Use a new finding ID and `--supersedes` to correct it.
 The final report links to the current findings.
+
+## Independent Review Gate
+
+After the base, claims, and verdicts are ready, run
+`case_handoff.py CASE_DIR request-review gold` as the author. Give the reviewer
+the case path and primary evidence references. The reviewer runs
+`record-review gold` with a distinct reviewer ID, verdict, evidence paths,
+and a summary. A changed input or evidence file requires a fresh review
+before gold can be promoted.
+
+Use `start-task --task-type family-attribution` or
+`--task-type material-report-correction` for those high-impact deliverables.
+Save the outputs in an in-progress checkpoint and request review using its
+task ID. Mark the task completed once the independent approval matches the
+saved outputs. Use `--task-type gold-bndb` to show review readiness on a gold
+task checkpoint. The same gold receipt covers promotion and task completion.
 
 ## Resume Existing Case Work
 

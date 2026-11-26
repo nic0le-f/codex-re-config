@@ -103,7 +103,7 @@ def values(data):
 
 def case_references(case):
     metadata = [case / "case.json", case / "index.json", case / "hunting" / "candidates.json"]
-    for folder in ("tasks", "findings", "hunting/jobs", "hunting/rules", "gold/manifests"):
+    for folder in ("tasks", "findings", "reviews", "hunting/jobs", "hunting/rules", "gold/manifests"):
         metadata.extend((case / folder).rglob("*.json"))
     referenced = set()
     for path in metadata:
@@ -167,7 +167,7 @@ def storage_inventory(root, limit):
         "cases": len(cases),
         "files": file_count,
         "bytes": total_bytes,
-        "reference_scope": "case index, candidate index, task and finding records, hunt and gold manifests",
+        "reference_scope": "case index, candidate index, task, finding and review records, hunt and gold manifests",
         "referenced_count": len(referenced),
         "referenced_examples": sorted(referenced)[:limit],
         "duplicate_group_count": len(duplicates),

@@ -15,6 +15,8 @@ from typing import Any
 import binaryninja as bn
 
 from bn_export_facts import analysis_target, verify_base_target
+from case_review import ReviewRequired, verify_review
+
 from bngold_case import read_jsonl, sha256_file, validate_claim
 from case_handoff import write_json
 
@@ -196,7 +198,17 @@ def verify_saved(path, claims, defined_types, source_digest):
 
 
 def build_gold(case_dir, base, gold, staging, required):
-    claims = accepted_claims(case_dir)
+    review = verify_review(case_dir, "gold")
+    frozen_claims = staging / "claims"
+    frozen_claims.mkdir()
+    approved = {entry["path"]: entry["sha256"] for entry in review["subject_inputs"]["files"]}
+    for name in ("claims.jsonl", "verdicts.jsonl"):
+        relative = f"claims/{name}"
+        frozen = frozen_claims / name
+        shutil.copy2(case_dir / relative, frozen)
+        if sha256_file(frozen) != approved[relative]:
+            raise ReviewRequired(f"gold review is stale: {relative} changed")
+    claims = accepted_claims(staging)
     unresolved = sorted(set(required) - {claim["claim_id"] for claim in claims})
     readiness = case_dir / "reports" / "gold_readiness.json"
     result = {
@@ -212,6 +224,8 @@ def build_gold(case_dir, base, gold, staging, required):
     candidate = staging / "candidate.bndb"
     shutil.copy2(base, source)
     base_digest = sha256_file(source)
+    if base_digest != approved["binja/base.bndb"]:
+        raise ReviewRequired("gold review is stale: base database changed")
     bv = bn.load(str(source))
     if bv is None:
         raise RuntimeError(f"failed to load {source}")
@@ -243,6 +257,9 @@ def build_gold(case_dir, base, gold, staging, required):
         bv.file.close()
     verify_saved(candidate, claims, defined_types, sample_digest)
 
+    if verify_review(case_dir, "gold") != review:
+        raise ValueError("gold review changed during the build")
+
     previous = gold.with_name("previous.bndb")
     previous_digest = None
     if gold.exists():
@@ -252,6 +269,7 @@ def build_gold(case_dir, base, gold, staging, required):
         previous_copy.replace(previous)
     applied.update(
         base_sha256=base_digest,
+        independent_review=review,
         analysis_target=str(sample.relative_to(case_dir)),
         analysis_target_sha256=sample_digest,
         requested_claims=result["requested_claims"],
@@ -323,11 +341,16 @@ def main(argv: list[str] | None = None) -> int:
                 rollback_gold(case_dir, gold, staging, args.rollback.lower())
             else:
                 try:
-                    build_gold(case_dir, base, gold, staging, args.require_claim)
+                    (case_dir / "reviews").mkdir(exist_ok=True)
+                    with (case_dir / "reviews" / ".review.lock").open("a") as review_lock:
+                        fcntl.flock(review_lock, fcntl.LOCK_SH)
+                        build_gold(case_dir, base, gold, staging, args.require_claim)
                 except (OSError, ValueError, RuntimeError) as exc:
                     readiness = case_dir / "reports" / "gold_readiness.json"
                     report = json.loads(readiness.read_text()) if readiness.is_file() else {}
-                    status = "unresolved" if report.get("status") == "unresolved" else "failed"
+                    status = report.get("status") if report.get("status") == "unresolved" else "failed"
+                    if isinstance(exc, ReviewRequired):
+                        status = "review-required"
                     write_json(readiness, {**report, "status": status, "error": str(exc)})
                     raise
     print(gold)

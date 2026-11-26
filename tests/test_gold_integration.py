@@ -87,11 +87,27 @@ class GoldIntegrationTests(unittest.TestCase):
             verdicts = [{"claim_id": row["claim_id"], "status": "accepted"} for row in claims]
             (case / "claims/verdicts.jsonl").write_text("".join(f"{json.dumps(row)}\n" for row in verdicts))
 
+        def approve():
+            self.run_script("case_handoff.py", case, "request-review", "gold", "--session-id", "author")
+            self.run_script("case_handoff.py", case, "record-review", "gold",
+                            "--reviewer", "Fixture reviewer", "--reviewer-id", "reviewer",
+                            "--kind", "human", "--verdict", "approve",
+                            "--evidence", "case.json", "--summary", "Fixture inputs checked")
+
         save_claims()
         apply = "bn_apply_claims.py"
         gold = case / "gold/gold.bndb"
         required = [argument for row in claims for argument in ("--require-claim", row["claim_id"])]
+        unreviewed = command(apply, case, *required)
+        self.assertNotEqual(unreviewed.returncode, 0)
+        self.assertFalse(gold.exists())
+        approve()
+        self.run_script("case_handoff.py", case, "start-task", "fixture-gold", "--session-id",
+                        "author", "--task-type", "gold-bndb", "--scope", "Fixture",
+                        "--deliverable", "Gold", "--done-when", "Verified")
         self.run_script(apply, case, *required)
+        self.run_script("case_handoff.py", case, "record-task", "fixture-gold", "--session-id",
+                        "author", "--scope", "Fixture", "--status", "completed", "--output", "gold/gold.bndb")
         first = digest(gold)
         self.assertIn("requested_claims", json.loads((case / "gold/manifests" / f"{first}.json").read_text()))
         saved = bn.load(str(gold))
@@ -118,6 +134,11 @@ class GoldIntegrationTests(unittest.TestCase):
 
         claims[2]["proposed_value"] = "mw_fixture_sum_revised"
         save_claims()
+        stale = command(apply, case, *required)
+        self.assertNotEqual(stale.returncode, 0)
+        self.assertIn("stale", stale.stderr)
+        self.assertEqual(digest(gold), first)
+        approve()
         self.run_script(apply, case, *required)
         second = digest(gold)
         self.assertNotEqual(first, second)
@@ -135,6 +156,7 @@ class GoldIntegrationTests(unittest.TestCase):
         rejected_export = command("bn_export_facts.py", case)
         self.assertNotEqual(rejected_export.returncode, 0)
         self.assertIn("differs from the current analysis target", rejected_export.stderr)
+        approve()
         rejected_apply = command(apply, case)
         self.assertNotEqual(rejected_apply.returncode, 0)
         readiness = json.loads((case / "reports/gold_readiness.json").read_text())

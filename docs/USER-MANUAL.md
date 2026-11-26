@@ -139,6 +139,42 @@ python3 "$scripts/case_handoff.py" . validate-rule "$job_id" \
   --negative "/path/to/negative-fixture"
 ```
 
+## Get independent review
+
+Gold promotion requires an independent approval. Start family-attribution
+and material report correction tasks with `--task-type family-attribution`
+or `--task-type material-report-correction`. Use `--task-type gold-bndb`
+for a gold task. Its completion uses the same case-level approval as
+promotion and expects `gold/gold.bndb` among the task outputs.
+Routine work can use `re`, `triage`, `hunting`, or `yara`.
+
+For a task, first save its output paths with `record-task --status in-progress`.
+The author requests review under the task ID for attribution or correction. For gold, use the reserved
+subject `gold` after saving the base, claims, and verdicts.
+
+```sh
+python3 "$scripts/case_handoff.py" . request-review gold --session-id "$CODEX_THREAD_ID"
+```
+
+A separate reviewer runs the following with evidence they inspected. Replace
+`gold` with the task ID for a high-impact checkpoint.
+
+```sh
+python3 "$scripts/case_handoff.py" . record-review gold \
+  --kind session --reviewer "Independent validator" --verdict approve \
+  --evidence evidence/review-note.md --summary "Checked the claims against primary evidence"
+```
+
+A subagent uses `--kind subagent`; a human uses `--kind human --reviewer-id ID`.
+A signed-in Codex review defaults to that session's thread ID. Provide
+`--model MODEL` if known. The gate rejects the author thread as a reviewer.
+The receipt records identities and checked files and relies on the accuracy
+of human attestations. Use `--verdict request-changes` when evidence is
+insufficient. Once approved, keep the reviewed files unchanged while
+marking the task complete or promoting gold. Changed outputs, claim inputs,
+or review evidence require a current verdict. A fresh request is needed
+when the review subject changed.
+
 ## Review a gold database update
 
 Use `$binaryninja-gold-re` in Codex for the evidence and review workflow.
@@ -154,8 +190,7 @@ bnpython="/path/to/BinaryNinja/bnpython3"
   --require-claim approved-signature --require-claim approved-local-name
 ```
 
-Use IDs from the case's claim records. A required claim with no accepted
-verdict blocks promotion. The manifest and coverage report explain what
+Use IDs from the case's claim records. An independent gold receipt and all explicitly required claim verdicts must be current to promote. The manifest and coverage report explain what
 was applied and what remains unresolved. The case manifest identifies
 the expected sample or payload. A mismatched base database blocks promotion.
 If the target changed, preserve the old database lanes and verify the new

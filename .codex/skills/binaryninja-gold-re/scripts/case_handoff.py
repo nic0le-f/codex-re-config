@@ -12,6 +12,8 @@ import re
 import subprocess
 import tempfile
 
+from case_review import read_review, review_path, review_update, verify_task_review
+
 from case_records import bounded_excerpt, candidate, cross_case_lookup, file_digest, inside, storage_inventory
 
 
@@ -80,7 +82,10 @@ def start_or_record_task(case, args):
             result = {
                 "task_id": args.task_id,
                 "session_id": args.session_id,
+                "first_session_id": args.session_id,
                 "scope": args.scope,
+                "task_type": args.task_type,
+                "review_required": args.task_type in {"gold-bndb", "family-attribution", "material-report-correction"},
                 "deliverable": args.deliverable,
                 "done_when": args.done_when,
                 "status": "in-progress",
@@ -105,7 +110,14 @@ def start_or_record_task(case, args):
             "next_action": args.next_action,
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
-        write_json(path, result)
+        if args.status == "completed" and result.get("review_required"):
+            (case / "reviews").mkdir(exist_ok=True)
+            with (case / "reviews" / ".review.lock").open("a") as review_lock:
+                fcntl.flock(review_lock, fcntl.LOCK_SH)
+                verify_task_review(case, result)
+                write_json(path, result)
+        else:
+            write_json(path, result)
         return result
 
 
@@ -408,6 +420,8 @@ def main():
     start.add_argument("task_id", type=task_id)
     start.add_argument("--session-id", default=os.getenv("CODEX_THREAD_ID") or os.getenv("CODEX_SESSION_ID"))
     start.add_argument("--scope")
+    start.add_argument("--task-type", choices=("re", "triage", "hunting", "yara",
+                       "gold-bndb", "family-attribution", "material-report-correction"))
     start.add_argument("--deliverable")
     start.add_argument("--done-when")
     task = commands.add_parser("task", help="read the latest task checkpoint")
@@ -421,7 +435,21 @@ def main():
     save.add_argument("--evidence", action="append", default=[])
     save.add_argument("--open-question", action="append", default=[])
     save.add_argument("--next-action")
+    request = commands.add_parser("request-review", help="freeze the current gold or task inputs for review")
+    request.add_argument("subject", type=task_id)
+    request.add_argument("--session-id", default=os.getenv("CODEX_THREAD_ID") or os.getenv("CODEX_SESSION_ID"))
+    verdict = commands.add_parser("record-review", help="record an independent verdict for approved inputs")
+    verdict.add_argument("subject", type=task_id)
+    verdict.add_argument("--reviewer", required=True)
+    verdict.add_argument("--reviewer-id", default=os.getenv("CODEX_THREAD_ID") or os.getenv("CODEX_SESSION_ID"))
+    verdict.add_argument("--kind", choices=("subagent", "session", "human"), required=True)
+    verdict.add_argument("--model")
+    verdict.add_argument("--verdict", choices=("approve", "request-changes"), required=True)
+    verdict.add_argument("--evidence", action="append", required=True)
+    verdict.add_argument("--summary", required=True)
     args = parser.parse_args()
+    if args.command in {"task", "start-task", "record-task"} and args.task_id == "gold":
+        parser.error("gold is reserved for case-level gold review")
     case = args.case.expanduser().resolve()
     if not (case / "case.json").is_file():
         parser.error(f"no case.json in {case}")
@@ -459,6 +487,13 @@ def main():
         elif args.command == "inventory":
             root = args.cases_dir.expanduser().resolve() if args.cases_dir else case
             result = storage_inventory(root, args.limit)
+        elif args.command in {"request-review", "record-review"}:
+            path = review_path(case, args.subject)
+            path.parent.mkdir(exist_ok=True)
+            with (path.parent / ".review.lock").open("a") as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX)
+                result = review_update(case, args, read_review(case, args.subject))
+                write_json(path, result)
         elif args.command == "task":
             result = read_json(case / "tasks" / f"{args.task_id}.json")
         else:

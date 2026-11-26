@@ -56,6 +56,38 @@ class CaseWorkflowTests(unittest.TestCase):
                             "--start-date", "2026-01-01", "--end-date", "2026-01-31",
                             "--rule", rule, "--hit-list", hits, "--expected-count", expected_count, status=status)
 
+    def test_high_impact_completion_requires_independent_current_review(self):
+        identifier = "attribute-fixture"
+        report = self.case / "reports/assessment.md"
+        report.write_text("Fixture assessment")
+        evidence = self.case / "evidence/local.txt"
+        evidence.write_text("Fixture evidence")
+        self.command("start-task", identifier, "--session-id", "author", "--task-type", "family-attribution",
+                     "--scope", "Fixture", "--deliverable", "Assessment", "--done-when", "Review complete")
+        def checkpoint(status, expected=0):
+            return self.command("record-task", identifier, "--session-id", "author", "--scope", "Fixture",
+                                "--status", status, "--output", "reports/assessment.md", status=expected)
+        def verdict(reviewer, status=0, decision="approve"):
+            return self.command("record-review", identifier, "--reviewer", "Fixture reviewer",
+                                "--reviewer-id", reviewer, "--kind", "human", "--verdict", decision,
+                                "--evidence", "evidence/local.txt", "--summary", "Fixture checked", status=status)
+
+        checkpoint("in-progress")
+        checkpoint("completed", 2)
+        self.command("request-review", identifier, "--session-id", "author")
+        verdict("author", 2)
+        verdict("other", decision="request-changes")
+        checkpoint("completed", 2)
+        verdict("other")
+        report.write_text("Changed assessment")
+        checkpoint("completed", 2)
+        self.command("request-review", identifier, "--session-id", "author")
+        verdict("other")
+        evidence.write_text("Changed evidence")
+        checkpoint("completed", 2)
+        verdict("other")
+        self.assertEqual(checkpoint("completed")["status"], "completed")
+
     def test_intake_reuses_alias_and_preserves_annotations(self):
         alias = self.root / "renamed.bin"
         alias.write_bytes(self.sample.read_bytes())
