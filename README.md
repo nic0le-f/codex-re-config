@@ -43,8 +43,33 @@ target machine has a different architecture or OS.
 
 ## Resume a case
 
-Start Codex in the specific case directory under `~/re-cases`. Keep
-`index.json` as a short map to the current database, reports, tasks and hunts.
+For a new sample, use the path returned by intake. New cases get an
+`index.json`, an empty candidate index, and directories for tasks and hunt
+jobs. The index identifies the expected gold and report paths before those
+artifacts exist. Existing cases keep their index and metadata. A legacy
+case without an index can use the standard map in memory.
+
+```sh
+skill=~/.codex/skills/binaryninja-gold-re/scripts
+case_dir=$(python3 "$skill/bngold_case.py" init "$sample") && cd "$case_dir"
+```
+
+Start Codex in the case directory. Use one task ID per deliverable.
+
+```sh
+handoff=~/.codex/skills/binaryninja-gold-re/scripts/case_handoff.py
+python3 "$handoff" . start-task review-hits \
+  --scope "Review candidates from the selected job" \
+  --deliverable "Update hunting/candidates.json" \
+  --done-when "Each in-scope hash has evidence or an explicit unknown"
+
+# In a later session, load the existing checkpoint.
+python3 "$handoff" . start-task review-hits
+```
+
+The command returns the case map and checkpoint together. An existing task
+is opened unchanged, including a completed checkpoint. It uses the Codex
+thread ID when available. Pass `--session-id` explicitly if needed.
 Paths in the map and task records are relative to the case root. Keep raw
 hunt exports in place and record each job's rule SHA-256 and hit-list path.
 Use one entry per full hash in `hunting/candidates.json`, under the
@@ -69,7 +94,7 @@ The importer reads `hunting/jobs/<job-id>.json` with `job_id`, `hit_list`
 and `hits` (unique count). It merges job links into existing candidate
 records and preserves dispositions. Use a new job ID for a changed export.
 
-A task write replaces the previous checkpoint for that ID. Include the
-current evidence, outputs and open questions each time. Run one writer per
-task ID. The command reads case metadata only and uses the existing Codex
+`record-task` updates the checkpoint for that ID and preserves the
+deliverable and completion criteria set at kickoff. Include the current
+evidence, outputs and open questions each time. The command reads case metadata only and uses the existing Codex
 sign-in workflow.

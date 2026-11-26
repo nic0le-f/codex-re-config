@@ -15,6 +15,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from case_handoff import default_index
+
 
 VALID_KINDS = {
     "function_name",
@@ -139,6 +141,8 @@ def populate_case(args, sample: Path, digest: str, case_dir: Path, staging: Path
         "reports",
         "recovered_tree",
         "triage",
+        "tasks",
+        "hunting/jobs",
     ):
         (staging / subdir).mkdir(parents=True, exist_ok=True)
     original = staging / "sample" / "original.bin"
@@ -169,6 +173,8 @@ def populate_case(args, sample: Path, digest: str, case_dir: Path, staging: Path
             "note": parent_note,
         }
     write_json(staging / "case.json", case)
+    write_json(staging / "index.json", default_index(case))
+    write_json(staging / "hunting" / "candidates.json", {"schema_version": 1, "candidates": {}})
     for path in (staging / "claims" / "claims.jsonl", staging / "claims" / "verdicts.jsonl"):
         path.touch(exist_ok=True)
 

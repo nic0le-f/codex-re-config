@@ -203,14 +203,17 @@ For session context, start with a short summary of the current result,
 evidence IDs or bounded excerpts. Save full decompiler exports and tool
 results to case files and reference their paths when needed.
 
-Start in the case root and read its `index.json` when present. For hunt
-follow-ups, use `scripts/case_handoff.py` with the case path and `lookup
-SHA256` to find prior assessments and job IDs. Read the cited evidence
-needed for the current question. Save a compact checkpoint with
-`record-task` after meaningful progress and at handoff. Include the
-actual Codex session ID when available, scope, output paths, evidence
-references, open questions, and the next action. See the repository README
-for command examples.
+Start in the case root returned by intake. Use
+`scripts/case_handoff.py CASE_DIR start-task TASK_ID` to read the case map
+and existing checkpoint together. For a new task, supply `--scope`,
+`--deliverable`, and `--done-when`. New cases have an index from intake.
+For legacy cases without one, the command returns the standard paths.
+
+For hunt follow-ups, use `lookup SHA256` to find prior assessments and
+job IDs. Update the checkpoint with `record-task` after meaningful
+progress and at handoff. Include the Codex session ID, scope, output paths,
+evidence references, open questions and next action. See the repository
+README for command examples.
 
 ## Output Standard
 

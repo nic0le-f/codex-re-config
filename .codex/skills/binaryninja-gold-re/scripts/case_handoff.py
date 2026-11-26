@@ -5,6 +5,7 @@ import argparse
 import fcntl
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import re
 import tempfile
@@ -29,6 +30,72 @@ def write_json(path, record):
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
+
+
+def default_index(manifest):
+    return {
+        "schema_version": 1,
+        "case_sha256": manifest.get("sha256"),
+        "case_manifest": "case.json",
+        "gold_database": "gold/gold.bndb",
+        "main_report": "reports/final.md",
+        "hunt_jobs": {},
+        "hunt_job_directory": "hunting/jobs",
+        "candidate_index": "hunting/candidates.json",
+        "task_directory": "tasks",
+    }
+
+
+def case_index(case):
+    path = case / "index.json"
+    if path.is_file():
+        return read_json(path)
+    return default_index(read_json(case / "case.json"))
+
+
+def start_or_record_task(case, args):
+    tasks = case / "tasks"
+    tasks.mkdir(exist_ok=True)
+    path = tasks / f"{args.task_id}.json"
+    with (tasks / ".checkpoint.lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        current = read_json(path) if path.is_file() else {}
+        if args.command == "start-task":
+            if current:
+                return {"mode": "resume", "case_index": case_index(case), "task": current}
+            if not all(value and value.strip() for value in (args.scope, args.deliverable, args.done_when)):
+                raise ValueError("a new task requires --scope, --deliverable, and --done-when")
+            index = case_index(case)
+            result = {
+                "task_id": args.task_id,
+                "session_id": args.session_id,
+                "scope": args.scope,
+                "deliverable": args.deliverable,
+                "done_when": args.done_when,
+                "status": "in-progress",
+                "outputs": [],
+                "evidence": [],
+                "open_questions": [],
+                "next_action": None,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+            write_json(path, result)
+            return {"mode": "start", "case_index": index, "task": result}
+
+        result = {
+            **current,
+            "task_id": args.task_id,
+            "session_id": args.session_id,
+            "scope": args.scope,
+            "status": args.status,
+            "outputs": args.output,
+            "evidence": args.evidence,
+            "open_questions": args.open_question,
+            "next_action": args.next_action,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        write_json(path, result)
+        return result
 
 
 def task_id(value):
@@ -82,6 +149,12 @@ def main():
     lookup.add_argument("sha256", type=sha256)
     importer = commands.add_parser("import-hits", help="merge an archived hit list into the candidate index")
     importer.add_argument("job_id", type=task_id)
+    start = commands.add_parser("start-task", help="open a checkpoint or start a task")
+    start.add_argument("task_id", type=task_id)
+    start.add_argument("--session-id", default=os.getenv("CODEX_THREAD_ID") or os.getenv("CODEX_SESSION_ID"))
+    start.add_argument("--scope")
+    start.add_argument("--deliverable")
+    start.add_argument("--done-when")
     task = commands.add_parser("task", help="read the latest task checkpoint")
     task.add_argument("task_id", type=task_id)
     save = commands.add_parser("record-task", help="save or replace a complete task checkpoint")
@@ -99,7 +172,7 @@ def main():
         parser.error(f"no case.json in {case}")
     try:
         if args.command == "index":
-            result = read_json(case / "index.json")
+            result = case_index(case)
         elif args.command == "import-hits":
             result = import_hits(case, args.job_id)
         elif args.command == "lookup":
@@ -109,23 +182,10 @@ def main():
                 print(f"No candidate record for {args.sha256}")
                 return 1
             result = {"sha256": args.sha256, **entry}
+        elif args.command == "task":
+            result = read_json(case / "tasks" / f"{args.task_id}.json")
         else:
-            path = case / "tasks" / f"{args.task_id}.json"
-            if args.command == "task":
-                result = read_json(path)
-            else:
-                result = {
-                    "task_id": args.task_id,
-                    "session_id": args.session_id,
-                    "scope": args.scope,
-                    "status": args.status,
-                    "outputs": args.output,
-                    "evidence": args.evidence,
-                    "open_questions": args.open_question,
-                    "next_action": args.next_action,
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                }
-                write_json(path, result)
+            result = start_or_record_task(case, args)
     except (OSError, ValueError, KeyError, argparse.ArgumentTypeError) as exc:
         parser.error(str(exc))
     print(json.dumps(result, indent=2))
