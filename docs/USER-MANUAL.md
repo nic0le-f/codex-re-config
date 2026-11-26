@@ -1,9 +1,25 @@
 # Codex RE harness user manual
 
-Use the harness from a signed-in Codex session. Start Codex inside the specific
-case directory under `~/re-cases` so the session is easy to find in Workspace
-Monitor. The scripts below run locally with Python 3.11 or newer. Binary Ninja operations
-use the installed `bnpython3`.
+## Work from chat
+
+Give Codex a sample path, case path, or full SHA-256. For an existing case,
+start the chat in its directory under `~/re-cases` when possible so the run is
+easy to find in [Workspace Monitor](http://127.0.0.1:8765).
+
+| What you want | What to ask Codex |
+|---|---|
+| Triage a new sample | “Run intake on this file, reuse any matching case, and save a quick static verdict with evidence.” |
+| Pick up prior work | “Resume this case from the relevant checkpoint. Tell me what’s verified and what’s open.” |
+| Review hunt results | “Register this hit list and the submitted YARA file. Use the service’s job ID if available and check which hashes already have assessments.” |
+| Update gold or a major conclusion | “Verify the result against primary evidence and get independent review. Leave it pending if approval is unavailable.” |
+
+Give each task one deliverable and a clear completion check. The harness
+tells Codex to save the checkpoint for case work, including quick triage.
+It records output paths, evidence, open questions, and the next action.
+Read-only questions can use existing records. Codex runs the commands below
+on your behalf. They’re also here
+for troubleshooting. The scripts use Python 3.11 or newer, and Binary Ninja
+operations use the installed `bnpython3`.
 
 ## Open or create a case
 
@@ -40,7 +56,8 @@ The collector writes an identity summary, local parser results, and
 available Malcat and Binary Ninja evidence beneath `triage/`. Set
 `BNPYTHON` if your Binary Ninja interpreter is in a different location.
 The report's attention score helps prioritize review. Codex applies the
-triage rubric to reach the verdict.
+triage rubric, saves its verdict as `verdict.md` beside the collected
+evidence, and links it from the task checkpoint.
 
 ## Start, checkpoint, or resume a task
 
@@ -86,7 +103,10 @@ report and record the evidence path and any unresolved point in the checkpoint.
 
 ## Register and review a hunt
 
-Give each submitted job its own ID. Keep the exact rule file and machine-readable
+Use the service’s job ID when available. Otherwise choose a short local ID
+such as `november-pe-hunt-01`. If the service ID contains unsupported
+characters, use a local ID and record the original in the scope.
+Keep the exact rule file and machine-readable
 hit list from the service. The hit list should contain one full SHA-256 per
 line. Record the service, date window, and intended scope while the job details
 are still available. Preserve the archive for each job if the active rule

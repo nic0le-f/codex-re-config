@@ -15,11 +15,16 @@ Malcat output is heuristic evidence. It may prioritize Binary Ninja analysis, bu
 
 ## Default Workflow
 
+For a direct case task, follow [case handoff](../binaryninja-gold-re/references/case-handoff.md)
+to start or resume a `triage` task and save its checkpoint before replying.
+When another skill calls Malcat as a helper, return evidence paths to the
+owning task. For case work, put the Malcat outputs beneath the case's `triage/`.
+
 1. Confirm the target path is a local file and do not execute it.
 2. Run headless Malcat triage:
 
 ```bash
-python3 "$HOME/.codex/skills/malcat-triage/scripts/malcat_triage.py" /path/to/sample --out /tmp/malcat-triage
+python3 "$HOME/.codex/skills/malcat-triage/scripts/malcat_triage.py" "$sample" --out "triage/$task_id/malcat"
 ```
 
 3. If the helper fails, fall back to Malcat's bundled report script:

@@ -16,8 +16,8 @@ and `bnpython` to the installed Binary Ninja interpreter.
    Work from the returned directory under `~/re-cases` by default. Intake
    reuses one full-SHA-256 match. If it finds multiple matches, review their
    references before consolidation. Read [sample lineage](references/sample-lineage.md)
-   for payloads or alternate case roots. Read [case handoff](references/case-handoff.md)
-   to resume a task, work with hunt records, or record findings.
+   for payloads or alternate case roots. Follow [case handoff](references/case-handoff.md)
+   to start or resume the task before analysis and save its checkpoint before replying.
 2. **Prepare evidence.** Reuse relevant outputs under `triage/` from
    `static-malware-triage`. Collect optional Malcat leads when needed. Run
    `"$bnpython" "$scripts/bn_export_facts.py" "$case_dir"` to prepare the base
@@ -65,4 +65,5 @@ and `bnpython` to the installed Binary Ninja interpreter.
    Report accepted, rejected and unresolved claim counts, supported
    function/type/source-tree highlights, remaining unknowns, and checks
    performed within the reviewed scope. Save full results in the case and
-   use bounded excerpts in session context.
+   use bounded excerpts in session context. Save a checkpoint even if review
+   or another dependency blocks completion.

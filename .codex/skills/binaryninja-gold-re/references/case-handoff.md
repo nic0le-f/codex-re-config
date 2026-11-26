@@ -1,8 +1,28 @@
 # Case handoff, hunts, and findings
 
-Start in the case root returned by intake. Use `scripts/case_handoff.py CASE_DIR start-task TASK_ID` to read the case map and checkpoint together. Supply `--scope`, `--deliverable`, and `--done-when` for a new task. Legacy cases use standard paths when the index is absent.
+## Checkpoints are part of case work
 
-Use `lookup SHA256` before repeating analysis. Update the checkpoint with `record-task` at meaningful progress points and handoff. Include the session ID, scope, output paths, evidence references, open questions, and next action. The repository user manual has full command examples.
+For requested analysis or changes to case artifacts, Codex creates or resumes
+a task and saves the checkpoint without waiting for a separate user request.
+A question answered from existing records can stay read-only. A helper called
+by a broader workflow should return its artifacts to the owning task.
+
+Use the current case when it owns the input. For a new sample, use the case
+root from intake. Run `case_handoff.py CASE_DIR start-task TASK_ID` to read the
+case map and checkpoint. Reuse the task ID for the same deliverable. For a
+new task, supply `--scope`, `--deliverable`, `--done-when`, and the applicable
+`--task-type`. Legacy cases use standard paths when the index is absent.
+
+Run `record-task` at meaningful progress points and before returning. Record
+the session ID, scope, status, output paths, verified evidence, open questions,
+and next action. Use `in-progress` if work remains and `blocked` if a prerequisite
+prevents completion. If the session ID cannot be determined, pass
+`--session-id unavailable` so the checkpoint can still be saved. The user
+manual has full command examples.
+
+## Hunt and evidence follow-ups
+
+Use `lookup SHA256` before repeating analysis.
 
 Use `case_handoff.py CASE register-hunt` to archive an exported hunt job
 and link its hits to local candidate records. The command reports existing
