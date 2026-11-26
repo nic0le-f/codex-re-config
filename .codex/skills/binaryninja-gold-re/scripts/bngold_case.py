@@ -4,11 +4,14 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import json
 import os
+import re
 import shutil
 import stat
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +19,9 @@ from typing import Any
 VALID_KINDS = {
     "function_name",
     "function_comment",
+    "function_signature",
+    "local_variable_name",
+    "address_comment",
     "data_name",
     "type_definition",
     "source_file",
@@ -76,8 +82,53 @@ def init_case(args: argparse.Namespace) -> int:
         raise ValueError(f"not a regular file: {sample}")
 
     digest = sha256_file(sample)
+    root = Path(args.cases_dir).expanduser().resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    with (root / ".case-intake.lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        matches = existing_cases(root, digest)
+        if len(matches) > 1:
+            raise ValueError("multiple cases for the same SHA-256:\n" + "\n".join(map(str, matches)))
+        if matches:
+            existing = matches[0]
+            original = existing / "sample" / "original.bin"
+            if not original.is_file() or sha256_file(original) != digest:
+                raise ValueError(f"existing case sample is missing or mismatched: {existing}")
+            print(existing)
+            return 0
+        return create_case(args, sample, digest, root)
+
+
+def existing_cases(root: Path, digest: str) -> list[Path]:
+    matches = []
+    for folder, dirs, files in os.walk(root):
+        dirs[:] = sorted(name for name in dirs if not name.startswith(".") and name not in {
+            "binja", "claims", "evidence", "files", "gold", "reports", "sample",
+            "triage", "work",
+        })
+        if "case.json" not in files:
+            continue
+        candidate = Path(folder)
+        metadata = read_json(candidate / "case.json", {})
+        if str(metadata.get("sha256", "")).lower() == digest:
+            matches.append(candidate)
+    return matches
+
+
+def create_case(args, sample: Path, digest: str, root: Path) -> int:
     stem = "".join(ch if ch.isalnum() or ch in "._-" else "_" for ch in sample.name)
-    case_dir = Path(args.cases_dir).expanduser().resolve() / f"{stem}_{digest[:12]}"
+    case_dir = root / f"{stem}_{digest[:12]}"
+    if case_dir.exists():
+        raise ValueError(f"case path already exists: {case_dir}")
+    with tempfile.TemporaryDirectory(prefix=".case-intake-", dir=root) as temporary:
+        staging = Path(temporary) / "case"
+        populate_case(args, sample, digest, case_dir, staging)
+        staging.rename(case_dir)
+    print(case_dir)
+    return 0
+
+
+def populate_case(args, sample: Path, digest: str, case_dir: Path, staging: Path) -> None:
     for subdir in (
         "sample",
         "binja",
@@ -89,10 +140,11 @@ def init_case(args: argparse.Namespace) -> int:
         "recovered_tree",
         "triage",
     ):
-        (case_dir / subdir).mkdir(parents=True, exist_ok=True)
-    original = case_dir / "sample" / "original.bin"
-    if not original.exists():
-        shutil.copy2(sample, original)
+        (staging / subdir).mkdir(parents=True, exist_ok=True)
+    original = staging / "sample" / "original.bin"
+    shutil.copy2(sample, original)
+    if sha256_file(original) != digest:
+        raise ValueError(f"input changed during intake: {sample}")
     case = {
         "sample_name": sample.name,
         "original_path": str(sample),
@@ -116,11 +168,9 @@ def init_case(args: argparse.Namespace) -> int:
             "sha256": parent_sha,
             "note": parent_note,
         }
-    write_json(case_dir / "case.json", case)
-    for path in (case_dir / "claims" / "claims.jsonl", case_dir / "claims" / "verdicts.jsonl"):
+    write_json(staging / "case.json", case)
+    for path in (staging / "claims" / "claims.jsonl", staging / "claims" / "verdicts.jsonl"):
         path.touch(exist_ok=True)
-    print(case_dir)
-    return 0
 
 
 def read_json(path: Path, default: Any) -> Any:
@@ -210,6 +260,18 @@ def validate_claim(claim: dict[str, Any], index: int) -> list[str]:
     if claim.get("status") not in VALID_STATUS:
         errors.append(f"{prefix}: invalid status {claim.get('status')!r}")
     errors.extend(naming_errors(claim, prefix))
+    if claim.get("kind") == "local_variable_name":
+        target = claim.get("target")
+        name = claim.get("proposed_value")
+        if (
+            not isinstance(target, dict)
+            or not isinstance(target.get("function"), str)
+            or type(target.get("identifier")) is not int
+            or target["identifier"] < 0
+        ):
+            errors.append(f"{prefix}: expected function address and numeric variable identifier")
+        if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+            errors.append(f"{prefix}: expected a valid local variable name")
     evidence = claim.get("evidence")
     if not isinstance(evidence, list) or not evidence:
         errors.append(f"{prefix}: evidence must be a non-empty list")
@@ -297,7 +359,10 @@ def main() -> int:
     p_validate.set_defaults(func=validate_claims)
 
     args = parser.parse_args()
-    return args.func(args)
+    try:
+        return args.func(args)
+    except (OSError, ValueError) as exc:
+        parser.exit(1, f"{exc}\n")
 
 
 if __name__ == "__main__":

@@ -40,3 +40,36 @@ Install on another machine:
 
 The exported standalone package was Linux x86_64 musl. Use the official installer instead if the
 target machine has a different architecture or OS.
+
+## Resume a case
+
+Start Codex in the specific case directory under `~/re-cases`. Keep
+`index.json` as a short map to the current database, reports, tasks and hunts.
+Paths in the map and task records are relative to the case root. Keep raw
+hunt exports in place and record each job's rule SHA-256 and hit-list path.
+Use one entry per full hash in `hunting/candidates.json`, under the
+`candidates` key. Each entry can link multiple job IDs and an existing
+assessment. Record a pending disposition when the only evidence is a hit.
+
+From this checkout, run:
+
+```sh
+handoff=.codex/skills/binaryninja-gold-re/scripts/case_handoff.py
+python3 "$handoff" "$case_dir" index
+python3 "$handoff" "$case_dir" lookup "$sample_sha256"
+python3 "$handoff" "$case_dir" import-hits "$job_id"
+python3 "$handoff" "$case_dir" record-task review-hits \
+  --session-id "$codex_session_id" --scope "Review the selected hit list" \
+  --status in-progress --evidence hunting/candidates.json \
+  --next-action "Check the existing candidate dispositions"
+python3 "$handoff" "$case_dir" task review-hits
+```
+
+The importer reads `hunting/jobs/<job-id>.json` with `job_id`, `hit_list`
+and `hits` (unique count). It merges job links into existing candidate
+records and preserves dispositions. Use a new job ID for a changed export.
+
+A task write replaces the previous checkpoint for that ID. Include the
+current evidence, outputs and open questions each time. Run one writer per
+task ID. The command reads case metadata only and uses the existing Codex
+sign-in workflow.

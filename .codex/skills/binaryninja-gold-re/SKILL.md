@@ -19,6 +19,10 @@ Do not execute the sample. Static Binary Ninja analysis is the source of truth. 
 python3 "$HOME/.codex/skills/binaryninja-gold-re/scripts/bngold_case.py" init /path/to/sample --cases-dir "$HOME/re-cases"
 ```
 
+Intake checks the full SHA-256 against existing case manifests. If it finds
+one match, use the returned path and its existing lineage. If intake reports
+multiple matches, resolve references before consolidating any files.
+
 Override the cases root with `--cases-dir` or the `BNGOLD_CASES_DIR` environment variable.
 
 If the file you hand in is itself a payload rather than the delivered sample, record where it came from — otherwise the report attributes every finding to a file with no provenance:
@@ -96,6 +100,9 @@ Every proposed edit must be a JSONL claim with:
 
 Supported claim kinds:
 - `function_name`: meaningful behavior name for a function address.
+- `function_signature`: C function declaration, keyed by function address.
+- `local_variable_name`: name keyed by a target object with `function` (address string) and `identifier` (numeric Binary Ninja variable ID from the analyzed function’s HLIL variable list).
+- `address_comment`: evidence-backed note keyed by instruction address.
 - `function_comment`: concise evidence-backed behavior note.
 - `data_name`: semantic name for a data address or symbol.
 - `type_definition`: C type/enum/struct declaration.
@@ -184,6 +191,26 @@ When `file` or Binary Ninja indicates a Go binary:
 - Use `evidence/go_type_layouts.json` and `evidence/go_type_layouts.md` for DWARF-backed struct layout evidence.
 - For statically linked Go binaries, expect very large function counts. Focus claims on package clusters, command handlers, protocol handlers, config/build metadata, network/client setup, persistence/service logic, and crypto/compression routines.
 - Do not claim full struct layout recovery just because DWARF type names exist. Field-offset claims need `elf_go_type_layout.py` output or equivalent offset/access evidence plus validator acceptance.
+
+The apply command builds and reopens a candidate before replacing gold.
+It retains the previous database at `gold/previous.bndb` and records the
+base digest, gold digest, applied claim IDs and verification in a manifest
+under `gold/manifests/`.
+
+## Resume Existing Case Work
+
+For session context, start with a short summary of the current result,
+evidence IDs or bounded excerpts. Save full decompiler exports and tool
+results to case files and reference their paths when needed.
+
+Start in the case root and read its `index.json` when present. For hunt
+follow-ups, use `scripts/case_handoff.py` with the case path and `lookup
+SHA256` to find prior assessments and job IDs. Read the cited evidence
+needed for the current question. Save a compact checkpoint with
+`record-task` after meaningful progress and at handoff. Include the
+actual Codex session ID when available, scope, output paths, evidence
+references, open questions, and the next action. See the repository README
+for command examples.
 
 ## Output Standard
 
