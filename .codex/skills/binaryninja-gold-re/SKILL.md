@@ -197,6 +197,20 @@ It retains the previous database at `gold/previous.bndb` and records the
 base digest, gold digest, applied claim IDs and verification in a manifest
 under `gold/manifests/`.
 
+## Local case handoff
+
+Use `case_handoff.py CASE register-hunt` to archive an exported hunt job
+and link its hits to local candidate records. The command reports existing
+assessments. Keep the rule used and hit list as captured by the service.
+For known benign fixtures, `validate-rule` compiles and checks that frozen
+rule version against local positive and negative controls.
+
+The fact exporters put detailed results on disk. Use
+`case_handoff.py CASE evidence PATH --offset BYTE --limit BYTES` for
+targeted excerpts. Link a verified conclusion to case evidence with
+`record-finding`. Use a new finding ID and `--supersedes` to correct it.
+The final report links to the current findings.
+
 ## Resume Existing Case Work
 
 For session context, start with a short summary of the current result,

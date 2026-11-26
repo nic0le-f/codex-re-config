@@ -13,13 +13,7 @@ from typing import Any
 
 import binaryninja as bn
 
-
-def sha256_file(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()
+from case_records import file_digest, inside
 
 
 def save_database(bv: bn.BinaryView, path: Path) -> None:
@@ -35,21 +29,37 @@ def symbol_rows(symbols: list[Any], limit: int = 10000) -> list[dict[str, Any]]:
     return rows
 
 
-def analysis_target(case_dir: Path) -> Path:
-    """The file the gold BNDB describes — the unpacked payload once one is registered."""
-    case_path = case_dir / "case.json"
-    rel = "sample/original.bin"
-    if case_path.exists():
-        case = json.loads(case_path.read_text(encoding="utf-8"))
-        rel = case.get("analysis_target") or rel
-    target = case_dir / rel
-    if not target.exists():
+def analysis_target(case_dir: Path) -> tuple[Path, str]:
+    """Resolve the sample or recorded payload and verify its declared hash."""
+    case = json.loads((case_dir / "case.json").read_text(encoding="utf-8"))
+    relative = case.get("analysis_target") or "sample/original.bin"
+    target = inside(case_dir, relative)
+    if not target.is_file():
         raise FileNotFoundError(f"analysis target missing: {target}")
-    return target
+    expected = case.get("analysis_target_sha256") or case.get("sha256")
+    actual = file_digest(target)
+    if expected and expected != actual:
+        raise ValueError(f"analysis target hash differs from case metadata: {target}")
+    return target, actual
+
+
+def verify_base_target(bv, expected):
+    raw = bv.file.raw
+    if raw is None:
+        raise ValueError("base database has no raw source view")
+    digest = hashlib.sha256()
+    for offset in range(0, raw.length, 1024 * 1024):
+        length = min(1024 * 1024, raw.length - offset)
+        data = raw.read(raw.start + offset, length)
+        if len(data) != length:
+            raise ValueError("base database raw source view is incomplete")
+        digest.update(data)
+    if digest.hexdigest() != expected:
+        raise ValueError("base database source differs from the current analysis target")
 
 
 def export_facts(case_dir: Path) -> dict[str, Any]:
-    sample = analysis_target(case_dir)
+    sample, sample_sha256 = analysis_target(case_dir)
     base_bndb = case_dir / "binja" / "base.bndb"
     analyst_bndb = case_dir / "work" / "analyst.bndb"
     validator_bndb = case_dir / "work" / "validator.bndb"
@@ -58,6 +68,7 @@ def export_facts(case_dir: Path) -> dict[str, Any]:
     bv = bn.load(str(base_bndb if base_bndb.exists() else sample))
     if bv is None:
         raise RuntimeError(f"failed to load {sample}")
+    verify_base_target(bv, sample_sha256)
     print("[bngold] running Binary Ninja analysis", flush=True)
     bv.update_analysis_and_wait()
     print(f"[bngold] saving base BNDB: {base_bndb}", flush=True)
@@ -109,7 +120,7 @@ def export_facts(case_dir: Path) -> dict[str, Any]:
         "sample": {
             "path": str(sample),
             "relative_path": str(sample.relative_to(case_dir)),
-            "sha256": sha256_file(sample),
+            "sha256": sample_sha256,
             "size": sample.stat().st_size,
         },
         "binary_view": {

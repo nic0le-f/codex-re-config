@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from case_handoff import default_index
+from case_records import case_dirs
 
 
 VALID_KINDS = {
@@ -103,14 +104,7 @@ def init_case(args: argparse.Namespace) -> int:
 
 def existing_cases(root: Path, digest: str) -> list[Path]:
     matches = []
-    for folder, dirs, files in os.walk(root):
-        dirs[:] = sorted(name for name in dirs if not name.startswith(".") and name not in {
-            "binja", "claims", "evidence", "files", "gold", "reports", "sample",
-            "triage", "work",
-        })
-        if "case.json" not in files:
-            continue
-        candidate = Path(folder)
+    for candidate in case_dirs(root):
         metadata = read_json(candidate / "case.json", {})
         if str(metadata.get("sha256", "")).lower() == digest:
             matches.append(candidate)

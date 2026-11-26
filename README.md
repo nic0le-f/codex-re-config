@@ -98,3 +98,21 @@ records and preserves dispositions. Use a new job ID for a changed export.
 deliverable and completion criteria set at kickoff. Include the current
 evidence, outputs and open questions each time. The command reads case metadata only and uses the existing Codex
 sign-in workflow.
+
+## User guide and tests
+
+See the [user manual](docs/USER-MANUAL.md) for the daily workflow and the
+[work log](docs/WORK-LOG.md) for implementation and verification updates.
+
+The metadata tools and regression suite use Python 3.11 or later. The YARA
+fixture requires local `yara` and `yarac`. The optional Binary Ninja
+integration test compiles a benign ELF with a local C compiler and opens it
+statically.
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
+PYTHONDONTWRITEBYTECODE=1 bnpython3 -m unittest discover -s tests -p test_gold_integration.py -v
+```
+
+Run both commands from the repository root. The ordinary Python suite
+skips the Binary Ninja test when its module is unavailable.

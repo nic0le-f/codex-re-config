@@ -97,6 +97,8 @@ def main() -> int:
     facts = read_json(case_dir / "evidence" / "bn_facts.json", {})
     go_context = read_json(case_dir / "evidence" / "go_context.json", {})
     type_layouts = read_json(case_dir / "evidence" / "go_type_layouts.json", {})
+    from case_handoff import findings
+
     applied_claims = read_json(case_dir / "reports" / "applied_claims.json", {})
     claims = read_jsonl(case_dir / "claims" / "claims.jsonl")
     verdicts = read_jsonl(case_dir / "claims" / "verdicts.jsonl")
@@ -170,6 +172,12 @@ def main() -> int:
             report_lines.append(f"- `{kind}`: {len(grouped[kind])}")
             for claim in grouped[kind][:8]:
                 report_lines.append(f"  - `{claim.get('target')}` -> `{claim.get('proposed_value')}`")
+    active_findings = findings(case_dir)["current"]
+    if active_findings:
+        report_lines.extend(["", "## Current verified findings", ""])
+        for finding in active_findings:
+            finding_id = finding["finding_id"]
+            report_lines.append(f"- [{finding_id}](../findings/{finding_id}.json)")
     report_lines.extend(["", "## Source Tree", ""])
     if source_tree:
         report_lines.append(source_tree)
